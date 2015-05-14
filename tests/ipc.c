@@ -37,6 +37,7 @@ int main ()
     int sc;
     int i;
     int s1, s2;
+    int rc;
 
 	size_t size;
 	char * buf;
@@ -98,13 +99,35 @@ int main ()
     test_close (s1);
     test_close (sb);
 
+    /*  Test connecting a socket before bind sets ep error. */
+    sc = test_socket (AF_SP, NN_PAIR);
+    rc = test_connect (sc, SOCKET_ADDRESS);
+
+    /*  Leave enough time for a reconnect to attempt. */
+    nn_sleep (200);
+    
+    /*  Endpoint errno must not be 0 after connect retries. */
+    nn_assert (nn_geterror (sc, rc) != 0);
+    
+    sb = test_socket (AF_SP, NN_PAIR);
+    rc = test_bind (sb, SOCKET_ADDRESS);
+    
+    nn_sleep (200);
+    /*  Endpoint errno must be 0 after the reconnect succeeds. */
+    nn_assert (nn_geterror (sc, rc) == 0);
+    test_close (sb);
+    test_close (sc);
+    
     /*  Test two sockets binding to the same address. */
     sb = test_socket (AF_SP, NN_PAIR);
-    test_bind (sb, SOCKET_ADDRESS);
+    rc = test_bind (sb, SOCKET_ADDRESS);
+    nn_assert (nn_geterror (sb, rc) == 0);
     s1 = test_socket (AF_SP, NN_PAIR);
-    test_bind (s1, SOCKET_ADDRESS);
+    rc = test_bind (s1, SOCKET_ADDRESS);
+    nn_assert (nn_geterror (s1, rc) != 0);
     sc = test_socket (AF_SP, NN_PAIR);
-    test_connect (sc, SOCKET_ADDRESS);
+    rc = test_connect (sc, SOCKET_ADDRESS);
+    nn_assert (nn_geterror (sc, rc) == 0);
     nn_sleep (100);
     test_send (sb, "ABC");
     test_recv (sc, "ABC");

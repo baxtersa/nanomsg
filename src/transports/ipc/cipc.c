@@ -195,6 +195,7 @@ static void nn_cipc_handler (struct nn_fsm *self, int src, int type,
     NN_UNUSED void *srcptr)
 {
     struct nn_cipc *cipc;
+    int err;
 
     cipc = nn_cont (self, struct nn_cipc, fsm);
 
@@ -239,8 +240,14 @@ static void nn_cipc_handler (struct nn_fsm *self, int src, int type,
                 nn_epbase_clear_error (&cipc->epbase);
                 return;
             case NN_USOCK_ERROR:
-                nn_epbase_set_error (&cipc->epbase,
-                    nn_usock_geterrno (&cipc->usock));
+                err = nn_usock_geterrno (&cipc->usock);
+                /* Set EP error even if usock did not report the error code,
+                   from this point the EP is in error condition
+                 */
+                if (!err) {
+                    err = -EAGAIN;
+                }
+                nn_epbase_set_error (&cipc->epbase, err);
                 nn_usock_stop (&cipc->usock);
                 cipc->state = NN_CIPC_STATE_STOPPING_USOCK;
                 nn_epbase_stat_increment (&cipc->epbase,
@@ -291,6 +298,7 @@ static void nn_cipc_handler (struct nn_fsm *self, int src, int type,
             case NN_USOCK_SHUTDOWN:
                 return;
             case NN_SIPC_STOPPED:
+                nn_epbase_set_error (&cipc->epbase, -ECONNRESET);
                 nn_usock_stop (&cipc->usock);
                 cipc->state = NN_CIPC_STATE_STOPPING_USOCK;
                 return;
@@ -391,6 +399,7 @@ static void nn_cipc_start_connecting (struct nn_cipc *self)
     /*  Try to start the underlying socket. */
     rc = nn_usock_start (&self->usock, AF_UNIX, SOCK_STREAM, 0);
     if (nn_slow (rc < 0)) {
+        nn_epbase_set_error (&self->epbase, rc);
         nn_backoff_start (&self->retry);
         self->state = NN_CIPC_STATE_WAITING;
         return;

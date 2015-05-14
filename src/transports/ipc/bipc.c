@@ -419,6 +419,7 @@ static void nn_bipc_start_listening (struct nn_bipc *self)
     /*  Start listening for incoming connections. */
     rc = nn_usock_start (&self->usock, AF_UNIX, SOCK_STREAM, 0);
     if (nn_slow (rc < 0)) {
+        nn_epbase_set_error (&self->epbase, rc);
         nn_backoff_start (&self->retry);
         self->state = NN_BIPC_STATE_WAITING;
         return;
@@ -427,6 +428,7 @@ static void nn_bipc_start_listening (struct nn_bipc *self)
     rc = nn_usock_bind (&self->usock,
         (struct sockaddr*) &ss, sizeof (struct sockaddr_un));
     if (nn_slow (rc < 0)) {
+        nn_epbase_set_error (&self->epbase, rc);
         nn_usock_stop (&self->usock);
         self->state = NN_BIPC_STATE_CLOSING;
         return;
@@ -434,10 +436,12 @@ static void nn_bipc_start_listening (struct nn_bipc *self)
 
     rc = nn_usock_listen (&self->usock, NN_BIPC_BACKLOG);
     if (nn_slow (rc < 0)) {
+        nn_epbase_set_error (&self->epbase, rc);
         nn_usock_stop (&self->usock);
         self->state = NN_BIPC_STATE_CLOSING;
         return;
     }
+    nn_epbase_clear_error (&self->epbase);
     nn_bipc_start_accepting (self);
     self->state = NN_BIPC_STATE_ACTIVE;
 }
