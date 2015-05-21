@@ -110,7 +110,7 @@ int main ()
     nn_assert (nn_geterror (sc, rc) != 0);
     
     sb = test_socket (AF_SP, NN_PAIR);
-    rc = test_bind (sb, SOCKET_ADDRESS);
+    test_bind (sb, SOCKET_ADDRESS);
     
     nn_sleep (200);
     /*  Endpoint errno must be 0 after the reconnect succeeds. */
